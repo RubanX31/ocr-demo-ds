@@ -10,3 +10,16 @@ processed/
 failed/
 *.pyc
 .DS_Store" > .gitignore
+
+./.env
+__pycache__/
+*.pyc
+*.db
+database/
+logs/
+text_dumps/
+input/
+processed/
+failed/
+*.pyc
+.DS_Store
