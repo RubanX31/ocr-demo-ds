@@ -49,7 +49,7 @@ copy .env.example .env
 ```bash
 pip install -r requirements.txt
 ```
-### Create required folder
+### 5. Create required folder
 ```bash
 mkdir input processed failed logs text_dumps database
 ```
