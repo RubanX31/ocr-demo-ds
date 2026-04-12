@@ -1,0 +1,387 @@
+# =============================================================================
+# Discharge Summary Ontology
+# =============================================================================
+# This YAML defines the structured schema that the Reasoning LLM will use
+# to extract structured JSON from raw discharge summary text.
+#
+# STATUS: Placeholder — pending client finalization.
+# Do NOT treat this as a final contract. Fields, types, and required flags
+# may change once the client signs off on the schema.
+# =============================================================================
+
+metadata:
+  ontology_version: "1.0.0"
+  description: "Placeholder discharge summary ontology — pending client finalization"
+  total_top_level_fields: 9
+  created_date: "2026-04-12"
+  status: "placeholder — subject to change upon client approval"
+
+# ---------------------------------------------------------------------------
+# SECTION 1 — Patient Demographics
+# Basic identifying information about the patient.
+# ---------------------------------------------------------------------------
+patient_demographics:
+  patient_name:
+    description: "Full name of the patient"
+    data_type: "string"
+    required: true
+    example: "Rajesh Kumar Sharma"
+
+  age:
+    description: "Patient age as integer"
+    data_type: "integer"
+    required: true
+    example: 55
+
+  gender:
+    description: "Gender of the patient"
+    data_type: "string"
+    required: true
+    example: "Male"  # Allowed values: Male / Female / Other
+
+  date_of_birth:
+    description: "Date of birth of the patient"
+    data_type: "date"
+    required: false
+    example: "1971-03-15"  # Format: YYYY-MM-DD
+
+  patient_id:
+    description: "Hospital patient identifier"
+    data_type: "string"
+    required: true
+    example: "PAT-2026-004521"
+
+# ---------------------------------------------------------------------------
+# SECTION 2 — Admission Details
+# Information about the hospital admission and discharge dates,
+# the admitting physician, and the ward/department.
+# ---------------------------------------------------------------------------
+admission_details:
+  admission_date:
+    description: "Date of hospital admission"
+    data_type: "date"
+    required: true
+    example: "2026-03-20"  # Format: YYYY-MM-DD
+
+  discharge_date:
+    description: "Date of hospital discharge"
+    data_type: "date"
+    required: true
+    example: "2026-03-28"  # Format: YYYY-MM-DD
+
+  length_of_stay_days:
+    description: "Number of days the patient stayed in hospital, calculated from admission to discharge"
+    data_type: "integer"
+    required: true
+    example: 8
+
+  admitting_diagnosis:
+    description: "Primary reason for admission"
+    data_type: "string"
+    required: true
+    example: "Acute anterior wall myocardial infarction"
+
+  admitting_doctor:
+    description: "Name of the admitting physician"
+    data_type: "string"
+    required: true
+    example: "Dr. Priya Venkatesh"
+
+  ward_or_department:
+    description: "Name of the ward or unit the patient was admitted to"
+    data_type: "string"
+    required: false
+    example: "Cardiology ICU"
+
+# ---------------------------------------------------------------------------
+# SECTION 3 — Clinical Summary
+# Narrative clinical information including the presenting complaint,
+# illness history, examination findings, and hospital course.
+# ---------------------------------------------------------------------------
+clinical_summary:
+  chief_complaint:
+    description: "Patient's main presenting complaint"
+    data_type: "string"
+    required: true
+    example: "Severe chest pain radiating to the left arm for 3 hours"
+
+  history_of_present_illness:
+    description: "Narrative of the illness course leading to admission"
+    data_type: "string"
+    required: true
+    example: "55-year-old male presented with sudden onset severe retrosternal chest pain radiating to the left arm, associated with sweating and breathlessness. Pain started 3 hours prior to admission. Known hypertensive on irregular medication."
+
+  physical_examination_findings:
+    description: "Key examination findings on admission"
+    data_type: "string"
+    required: false
+    example: "BP 90/60 mmHg, HR 110/min, SpO2 94% on room air. Diaphoretic, JVP raised. S1S2 heard, S3 gallop present. Bilateral basal crepitations."
+
+  hospital_course_summary:
+    description: "Summary of what happened during the hospital stay"
+    data_type: "string"
+    required: true
+    example: "Patient was managed in ICCU with primary PCI to LAD. Post-procedure course was uneventful. Gradually mobilised. Echocardiography showed LVEF 40%. Started on dual antiplatelet therapy, beta-blocker, ACE inhibitor, and statin."
+
+# ---------------------------------------------------------------------------
+# SECTION 4 — Diagnoses
+# Final confirmed diagnoses at discharge, including ICD codes if available.
+# ---------------------------------------------------------------------------
+diagnoses:
+  primary_diagnosis:
+    description: "Main confirmed diagnosis at discharge"
+    data_type: "string"
+    required: true
+    example: "Acute ST-elevation myocardial infarction (anterior wall)"
+
+  secondary_diagnoses:
+    description: "List of additional diagnoses"
+    data_type: "list[string]"
+    required: false
+    example:
+      - "Essential hypertension"
+      - "Type 2 diabetes mellitus"
+      - "Dyslipidemia"
+
+  icd_codes:
+    description: "List of ICD codes if present in the discharge summary"
+    data_type: "list[string]"
+    required: false
+    example:
+      - "I21.0"
+      - "I10"
+      - "E11.9"
+
+# ---------------------------------------------------------------------------
+# SECTION 5 — Procedures
+# Procedures and surgeries performed during the hospital stay.
+# Each procedure entry may have sub-fields for name, date, and doctor.
+# ---------------------------------------------------------------------------
+procedures:
+  procedures_performed:
+    description: "List of procedures or surgeries done during the hospital stay"
+    data_type: "list[object]"
+    required: false
+    item_fields:
+      procedure_name:
+        description: "Name of the procedure"
+        data_type: "string"
+        required: false
+        example: "Primary percutaneous coronary intervention (PCI) to LAD"
+      date:
+        description: "Date the procedure was performed"
+        data_type: "date"
+        required: false
+        example: "2026-03-20"  # Format: YYYY-MM-DD
+      performing_doctor:
+        description: "Name of the doctor who performed the procedure"
+        data_type: "string"
+        required: false
+        example: "Dr. Arun Mehta"
+    example:
+      - procedure_name: "Primary PCI to LAD with drug-eluting stent"
+        date: "2026-03-20"
+        performing_doctor: "Dr. Arun Mehta"
+      - procedure_name: "2D Echocardiography"
+        date: "2026-03-22"
+        performing_doctor: "Dr. Priya Venkatesh"
+
+# ---------------------------------------------------------------------------
+# SECTION 6 — Medications
+# Medications prescribed at the time of discharge.
+# Each medication entry includes drug name, dose, frequency, duration, and route.
+# ---------------------------------------------------------------------------
+medications:
+  medications_on_discharge:
+    description: "List of medications prescribed at discharge"
+    data_type: "list[object]"
+    required: true
+    item_fields:
+      drug_name:
+        description: "Name of the medication"
+        data_type: "string"
+        required: true
+        example: "Aspirin"
+      dose:
+        description: "Dose of the medication"
+        data_type: "string"
+        required: true
+        example: "75 mg"
+      frequency:
+        description: "How often the medication should be taken"
+        data_type: "string"
+        required: true
+        example: "Once daily"
+      duration:
+        description: "Duration for which the medication is prescribed"
+        data_type: "string"
+        required: false
+        example: "Lifelong"
+      route:
+        description: "Route of administration"
+        data_type: "string"
+        required: false
+        example: "Oral"
+    example:
+      - drug_name: "Aspirin"
+        dose: "75 mg"
+        frequency: "Once daily"
+        duration: "Lifelong"
+        route: "Oral"
+      - drug_name: "Clopidogrel"
+        dose: "75 mg"
+        frequency: "Once daily"
+        duration: "12 months"
+        route: "Oral"
+      - drug_name: "Atorvastatin"
+        dose: "40 mg"
+        frequency: "Once daily at bedtime"
+        duration: "Lifelong"
+        route: "Oral"
+
+# ---------------------------------------------------------------------------
+# SECTION 7 — Investigations
+# Key laboratory results and imaging/radiology findings.
+# ---------------------------------------------------------------------------
+investigations:
+  lab_results:
+    description: "Key laboratory results during the hospital stay"
+    data_type: "list[object]"
+    required: false
+    item_fields:
+      test_name:
+        description: "Name of the laboratory test"
+        data_type: "string"
+        required: true
+        example: "Troponin I"
+      value:
+        description: "Result value of the test"
+        data_type: "string"
+        required: true
+        example: "12.5"
+      unit:
+        description: "Unit of measurement"
+        data_type: "string"
+        required: false
+        example: "ng/mL"
+      reference_range:
+        description: "Normal reference range for the test"
+        data_type: "string"
+        required: false
+        example: "0.0 - 0.04 ng/mL"
+      date:
+        description: "Date the test was performed"
+        data_type: "date"
+        required: false
+        example: "2026-03-20"
+    example:
+      - test_name: "Troponin I"
+        value: "12.5"
+        unit: "ng/mL"
+        reference_range: "0.0 - 0.04 ng/mL"
+        date: "2026-03-20"
+      - test_name: "Creatinine"
+        value: "1.1"
+        unit: "mg/dL"
+        reference_range: "0.7 - 1.3 mg/dL"
+        date: "2026-03-20"
+
+  imaging_findings:
+    description: "Radiology and imaging results"
+    data_type: "list[object]"
+    required: false
+    item_fields:
+      modality:
+        description: "Type of imaging study"
+        data_type: "string"
+        required: true
+        example: "2D Echocardiography"
+      body_part:
+        description: "Body part or region imaged"
+        data_type: "string"
+        required: false
+        example: "Heart"
+      finding:
+        description: "Key finding from the imaging study"
+        data_type: "string"
+        required: true
+        example: "LVEF 40%, hypokinesia of anterior wall and apex"
+      date:
+        description: "Date the imaging study was performed"
+        data_type: "date"
+        required: false
+        example: "2026-03-22"
+    example:
+      - modality: "2D Echocardiography"
+        body_part: "Heart"
+        finding: "LVEF 40%, hypokinesia of anterior wall and apex"
+        date: "2026-03-22"
+      - modality: "Chest X-Ray"
+        body_part: "Chest"
+        finding: "Mild pulmonary congestion, no pleural effusion"
+        date: "2026-03-20"
+
+# ---------------------------------------------------------------------------
+# SECTION 8 — Follow-Up
+# Post-discharge follow-up instructions, dates, and department.
+# ---------------------------------------------------------------------------
+follow_up:
+  follow_up_date:
+    description: "Scheduled follow-up date"
+    data_type: "date"
+    required: false
+    example: "2026-04-11"  # Format: YYYY-MM-DD
+
+  follow_up_doctor:
+    description: "Name of the doctor for follow-up visit"
+    data_type: "string"
+    required: false
+    example: "Dr. Priya Venkatesh"
+
+  follow_up_department:
+    description: "Department for the follow-up visit"
+    data_type: "string"
+    required: false
+    example: "Cardiology OPD"
+
+  follow_up_instructions:
+    description: "Free text instructions for the patient regarding follow-up"
+    data_type: "string"
+    required: false
+    example: "Review in Cardiology OPD after 2 weeks with repeat echocardiography. Bring all discharge medications. Report immediately if chest pain, breathlessness, or palpitations recur."
+
+# ---------------------------------------------------------------------------
+# SECTION 9 — Discharge Details
+# Condition at discharge, instructions, dietary/activity restrictions,
+# and the discharging physician.
+# ---------------------------------------------------------------------------
+discharge_details:
+  discharge_condition:
+    description: "Condition of the patient at discharge"
+    data_type: "string"
+    required: true
+    example: "Stable"  # Allowed values: Stable / Improved / Critical / Expired
+
+  discharge_instructions:
+    description: "General instructions given to the patient at discharge"
+    data_type: "string"
+    required: true
+    example: "Take medications regularly. Avoid exertion for 6 weeks. Monitor blood pressure daily. Report to ER if chest pain recurs."
+
+  diet_instructions:
+    description: "Dietary restrictions or recommendations"
+    data_type: "string"
+    required: false
+    example: "Low salt, low fat diet. Avoid fried and processed foods. Increase fruits and vegetables."
+
+  activity_restrictions:
+    description: "Physical activity limitations if any"
+    data_type: "string"
+    required: false
+    example: "Avoid heavy lifting and strenuous exercise for 6 weeks. Gradual return to normal activities. Cardiac rehabilitation recommended."
+
+  discharged_by:
+    description: "Name of the discharging physician"
+    data_type: "string"
+    required: false
+    example: "Dr. Priya Venkatesh"
