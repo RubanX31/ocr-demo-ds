@@ -1,25 +1,33 @@
-echo ".env
-__pycache__/
-*.pyc
-*.db
-database/
-logs/
-text_dumps/
-input/
-processed/
-failed/
-*.pyc
-.DS_Store" > .gitignore
+# --- Environment & Secrets ---
+.env
+.venv/
+env/
+venv/
+ENV/
+*.env
 
-./.env
+# --- Python Bytecode & Cache ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# --- Local Data & Databases ---
 *.db
+*.sqlite3
 database/
 logs/
-text_dumps/
+*.log
+
+# --- Project Specific Folders ---
 input/
 processed/
 failed/
-*.pyc
+text_dumps/
+
+# --- OS Metadata ---
 .DS_Store
+Thumbs.db
