@@ -1,4 +1,5 @@
-google-generativeai
+groq
+pdf2image
 watchdog
 fastapi
 uvicorn

@@ -1,6 +1,6 @@
 # Discharge Summary POC
 
-A proof-of-concept pipeline for processing hospital discharge summary PDFs using Google Gemini LLM.
+A proof-of-concept pipeline for processing hospital discharge summary PDFs using Groq LLM.
 
 ## Pipeline Flow
 
@@ -41,7 +41,7 @@ venv\Scripts\activate        # Windows
 
 ```bash
 copy .env.example .env
-# Edit .env and set your GEMINI_API_KEY
+# Edit .env and set your GROQ_API_KEY
 ```
 
 ### 4. Install dependencies
@@ -94,7 +94,7 @@ discharge_summary_poc/
 │   ├── config.py               # All constants and configuration
 │   ├── db.py                   # SQLite database layer
 │   ├── validator.py            # Pre-validation and quality checks
-│   ├── gemini_client.py        # Gemini API wrapper
+│   ├── gemini_client.py        # Groq API wrapper
 │   ├── vision_extractor.py     # Vision LLM text extraction
 │   ├── ontology_extractor.py   # Reasoning LLM JSON extraction
 │   ├── validation_layer1.py    # Structure validation
@@ -116,7 +116,7 @@ All settings are loaded from `.env` via `src/config.py`:
 
 | Variable              | Default   | Description                        |
 |-----------------------|-----------|------------------------------------|
-| `GEMINI_API_KEY`      | —         | Google AI Studio API key           |
+| `GROQ_API_KEY`        | —         | Groq API key                       |
 | `ACCEPTANCE_THRESHOLD`| `0.6`     | Minimum confidence score to accept |
 | `CONCURRENCY_LIMIT`   | `3`       | Max concurrent pipeline runs       |
 | `LOG_LEVEL`           | `INFO`    | Logging verbosity                  |

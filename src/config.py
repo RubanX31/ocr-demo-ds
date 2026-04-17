@@ -23,12 +23,14 @@ TEXT_DUMPS_DIR = PROJECT_ROOT / "text_dumps"
 DATABASE_DIR = PROJECT_ROOT / "database"
 LOGS_DIR = PROJECT_ROOT / "logs"
 ONTOLOGY_DIR = PROJECT_ROOT / "ontology"
+POPPLER_DIR = PROJECT_ROOT / "poppler" / "poppler-24.08.0" / "Library" / "bin"
 
 # ---------------------------------------------------------------------------
-# Gemini LLM settings
+# Groq LLM settings
 # ---------------------------------------------------------------------------
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = "models/gemini-2.0-flash"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL_VISION = "meta-llama/llama-4-scout-17b-16e-instruct"
+GROQ_MODEL_TEXT = "llama-3.3-70b-versatile"
 
 # Prompt versions (static — no dynamic modification)
 VISION_PROMPT_VERSION = "V1"

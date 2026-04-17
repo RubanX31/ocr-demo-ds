@@ -10,7 +10,7 @@ Runs three scenarios to demonstrate the end-to-end pipeline:
 Prerequisites:
     - Place at least one real discharge summary PDF in ``demo/test_pdfs/``
     - Start the mock API server:  python mock_api/server.py
-    - Create a ``.env`` file from ``.env.example`` and set your GEMINI_API_KEY
+    - Create a ``.env`` file from ``.env.example`` and set your GROQ_API_KEY
 
 # Sample discharge summaries available at:
 # - https://www.physionet.org/content/mimic-iv-note/2.2/ (MIMIC-IV clinical notes, free with registration)
@@ -233,7 +233,7 @@ def run_demo() -> None:
     print(f"    {RED}3. Threshold Failure{RESET}  — Valid PDF fails structure validation")
     print()
     print(f"  Timestamp : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  Model     : {config.GEMINI_MODEL}")
+    print(f"  Model     : {config.GROQ_MODEL_VISION} (vision), {config.GROQ_MODEL_TEXT} (text)")
     print(f"  Threshold : {config.ACCEPTANCE_THRESHOLD}")
     print(f"  API Port  : {config.MOCK_API_PORT}")
     print(f"{BOLD}{'=' * 70}{RESET}")

@@ -1,24 +1,32 @@
 """
-Gemini API wrapper for Discharge Summary POC.
+Groq API wrapper for Discharge Summary POC.
 
 Provides a single reusable :class:`GeminiClient` used by all pipeline stages:
-  - Vision LLM text extraction (PDF → text)
+  - Vision LLM text extraction (PDF → image → text)
   - Reasoning LLM ontology extraction (text → JSON)
   - Hallucination check (text + JSON → validation)
 
-Uses the ``google-generativeai`` library (legacy SDK). All calls are logged
+Uses the ``groq`` Python SDK. PDF pages are converted to JPEG images via
+``pdf2image`` before being sent to the vision model. All calls are logged
 via the Python :mod:`logging` module.
+
+.. note::
+   The class is still named ``GeminiClient`` and the module-level instance is
+   still ``gemini`` so that **no other files in the pipeline need to change**.
 """
 
+import base64
+import io
 import json
 import logging
 import re
 import time
 from pathlib import Path
 
-import google.generativeai as genai
+from groq import Groq
+from pdf2image import convert_from_path
 
-from src.config import GEMINI_API_KEY, GEMINI_MODEL
+from src.config import GROQ_API_KEY, GROQ_MODEL_VISION, GROQ_MODEL_TEXT, POPPLER_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +40,7 @@ _MAX_RETRIES = 1  # retry once after a 429
 
 class GeminiClient:
     """
-    Reusable wrapper around the Google Generative AI SDK.
+    Reusable wrapper around the Groq SDK.
 
     Instantiated once at module level as :data:`gemini` and imported by other
     modules (``from src.gemini_client import gemini``).
@@ -40,26 +48,19 @@ class GeminiClient:
 
     def __init__(self):
         """
-        Configure the Gemini SDK and set up the default model.
+        Initialise the Groq client.
 
-        Reads ``GEMINI_API_KEY`` and ``GEMINI_MODEL`` from :mod:`src.config`.
-        Uses a low temperature (0.1) for deterministic, consistent extractions.
+        Reads ``GROQ_API_KEY``, ``GROQ_MODEL_VISION``, and
+        ``GROQ_MODEL_TEXT`` from :mod:`src.config`.
         """
-        genai.configure(api_key=GEMINI_API_KEY)
+        self._client = Groq(api_key=GROQ_API_KEY)
+        self._vision_model = GROQ_MODEL_VISION
+        self._text_model = GROQ_MODEL_TEXT
 
-        self._model_name = GEMINI_MODEL
-        self._generation_config = genai.types.GenerationConfig(
-            temperature=0.1,
-            max_output_tokens=8192,
-        )
-        self._model = genai.GenerativeModel(
-            model_name=self._model_name,
-            generation_config=self._generation_config,
-        )
         logger.info(
-            "GeminiClient initialised — model=%s, temperature=0.1, "
-            "max_output_tokens=8192",
-            self._model_name,
+            "GeminiClient initialised — vision_model=%s, text_model=%s",
+            self._vision_model,
+            self._text_model,
         )
 
     # ================================================================
@@ -73,10 +74,8 @@ class GeminiClient:
         prompt_version: str = "V1",
     ) -> dict:
         """
-        Upload a PDF via the Gemini File API and send it with a text prompt.
-
-        The uploaded file is **always** deleted from Google servers after the
-        response is received (or on error), to avoid leaking PHI.
+        Convert the first page of a PDF to JPEG and send it with a text
+        prompt to the Groq vision model.
 
         Args:
             prompt:         The text prompt to send alongside the PDF.
@@ -87,35 +86,64 @@ class GeminiClient:
             dict with keys: ``success``, ``response_text``, ``token_count``,
             ``prompt_version``, ``model_used``, ``error``, ``time_ms``.
         """
-        result = self._empty_result(prompt_version)
-        uploaded_file = None
+        result = self._empty_result(prompt_version, self._vision_model)
 
         try:
             start = time.perf_counter()
 
-            # Upload PDF to Gemini File API
-            uploaded_file = genai.upload_file(
-                path=str(pdf_path),
-                display_name=pdf_path.name,
+            # Convert first page of PDF to JPEG image
+            images = convert_from_path(
+                str(pdf_path), dpi=150, first_page=1, last_page=1,
+                poppler_path=str(POPPLER_DIR),
             )
-            logger.info("Uploaded PDF to Gemini File API: %s", pdf_path.name)
+            first_page = images[0]
 
-            # Send prompt + PDF with retry logic
-            response = self._generate_with_retry(
-                contents=[uploaded_file, prompt],
+            # Encode image to base64 JPEG string
+            buffer = io.BytesIO()
+            first_page.save(buffer, format="JPEG")
+            base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+            logger.info(
+                "Converted first page of PDF to JPEG for vision model: %s",
+                pdf_path.name,
+            )
+
+            # Build message with image_url content type
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}",
+                            },
+                        },
+                    ],
+                }
+            ]
+
+            # Send to Groq vision model with retry logic
+            response = self._chat_with_retry(
+                model=self._vision_model,
+                messages=messages,
             )
 
             elapsed_ms = int((time.perf_counter() - start) * 1000)
 
             result["success"] = True
-            result["response_text"] = response.text
+            result["response_text"] = response.choices[0].message.content
             result["token_count"] = self._extract_token_count(response)
             result["time_ms"] = elapsed_ms
 
             logger.info(
                 "PDF prompt completed — model=%s, version=%s, "
                 "tokens=%d, time=%dms",
-                self._model_name,
+                self._vision_model,
                 prompt_version,
                 result["token_count"],
                 elapsed_ms,
@@ -128,25 +156,11 @@ class GeminiClient:
             logger.error(
                 "PDF prompt FAILED — model=%s, version=%s, time=%dms, "
                 "error=%s",
-                self._model_name,
+                self._vision_model,
                 prompt_version,
                 elapsed_ms,
                 exc,
             )
-
-        finally:
-            # Always clean up the uploaded file
-            if uploaded_file is not None:
-                try:
-                    genai.delete_file(uploaded_file.name)
-                    logger.info(
-                        "Deleted uploaded file from Gemini: %s",
-                        uploaded_file.name,
-                    )
-                except Exception as cleanup_exc:
-                    logger.warning(
-                        "Failed to delete uploaded file: %s", cleanup_exc
-                    )
 
         return result
 
@@ -156,7 +170,7 @@ class GeminiClient:
         prompt_version: str = "V1",
     ) -> dict:
         """
-        Send a text-only prompt to Gemini (no file upload).
+        Send a text-only prompt to the Groq text model.
 
         Used by the Reasoning LLM (ontology extraction) and the Hallucination
         Check stages.
@@ -169,24 +183,34 @@ class GeminiClient:
             dict with keys: ``success``, ``response_text``, ``token_count``,
             ``prompt_version``, ``model_used``, ``error``, ``time_ms``.
         """
-        result = self._empty_result(prompt_version)
+        result = self._empty_result(prompt_version, self._text_model)
 
         try:
             start = time.perf_counter()
 
-            response = self._generate_with_retry(contents=[prompt])
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ]
+
+            response = self._chat_with_retry(
+                model=self._text_model,
+                messages=messages,
+            )
 
             elapsed_ms = int((time.perf_counter() - start) * 1000)
 
             result["success"] = True
-            result["response_text"] = response.text
+            result["response_text"] = response.choices[0].message.content
             result["token_count"] = self._extract_token_count(response)
             result["time_ms"] = elapsed_ms
 
             logger.info(
                 "Text prompt completed — model=%s, version=%s, "
                 "tokens=%d, time=%dms",
-                self._model_name,
+                self._text_model,
                 prompt_version,
                 result["token_count"],
                 elapsed_ms,
@@ -199,7 +223,7 @@ class GeminiClient:
             logger.error(
                 "Text prompt FAILED — model=%s, version=%s, time=%dms, "
                 "error=%s",
-                self._model_name,
+                self._text_model,
                 prompt_version,
                 elapsed_ms,
                 exc,
@@ -209,13 +233,13 @@ class GeminiClient:
 
     def parse_json_response(self, response_text: str) -> dict:
         """
-        Extract and parse JSON from a Gemini response string.
+        Extract and parse JSON from a model response string.
 
-        Handles the common case where Gemini wraps JSON output inside
+        Handles the common case where the model wraps JSON output inside
         markdown code fences (``\\`\\`\\`json ... \\`\\`\\```).
 
         Args:
-            response_text: Raw text from the Gemini response.
+            response_text: Raw text from the model response.
 
         Returns:
             Parsed ``dict`` on success, or
@@ -243,28 +267,29 @@ class GeminiClient:
     # Private Helpers
     # ================================================================
 
-    def _empty_result(self, prompt_version: str) -> dict:
+    def _empty_result(self, prompt_version: str, model_name: str) -> dict:
         """Return a blank result dict with all expected keys."""
         return {
             "success": False,
             "response_text": None,
             "token_count": 0,
             "prompt_version": prompt_version,
-            "model_used": self._model_name,
+            "model_used": model_name,
             "error": None,
             "time_ms": 0,
         }
 
-    def _generate_with_retry(self, contents: list):
+    def _chat_with_retry(self, model: str, messages: list):
         """
-        Call ``model.generate_content`` with a single retry on HTTP 429
-        (rate limit exceeded).
+        Call ``client.chat.completions.create`` with a single retry on
+        HTTP 429 (rate limit exceeded).
 
         Args:
-            contents: The content list to pass to ``generate_content``.
+            model:    The Groq model name to use.
+            messages: The messages list for the chat completion.
 
         Returns:
-            The Gemini response object.
+            The Groq ChatCompletion response object.
 
         Raises:
             The original exception if the retry also fails or if the error
@@ -272,7 +297,12 @@ class GeminiClient:
         """
         for attempt in range(_MAX_RETRIES + 1):
             try:
-                response = self._model.generate_content(contents)
+                response = self._client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0.1,
+                    max_tokens=8192,
+                )
                 return response
             except Exception as exc:
                 if self._is_rate_limit_error(exc) and attempt < _MAX_RETRIES:
@@ -290,10 +320,8 @@ class GeminiClient:
     @staticmethod
     def _is_rate_limit_error(exc: Exception) -> bool:
         """Check if an exception is a 429 rate-limit error."""
-        # google-generativeai raises google.api_core.exceptions.ResourceExhausted
-        # for 429 errors. Also check the string representation as a fallback.
         exc_type_name = type(exc).__name__
-        if exc_type_name in ("ResourceExhausted", "TooManyRequests"):
+        if exc_type_name in ("RateLimitError", "TooManyRequests"):
             return True
         if "429" in str(exc) or "rate limit" in str(exc).lower():
             return True
@@ -302,18 +330,17 @@ class GeminiClient:
     @staticmethod
     def _extract_token_count(response) -> int:
         """
-        Safely extract total token count from a Gemini response.
+        Safely extract total token count from a Groq ChatCompletion response.
 
-        Tries ``response.usage_metadata.total_token_count`` first, then
-        falls back to ``candidates_token_count``, and finally returns 0
-        if neither is available.
+        Tries ``response.usage.total_tokens`` first, then falls back to
+        ``completion_tokens``, and finally returns 0 if neither is available.
         """
         try:
-            metadata = response.usage_metadata
-            if hasattr(metadata, "total_token_count"):
-                return metadata.total_token_count or 0
-            if hasattr(metadata, "candidates_token_count"):
-                return metadata.candidates_token_count or 0
+            usage = response.usage
+            if hasattr(usage, "total_tokens") and usage.total_tokens:
+                return usage.total_tokens
+            if hasattr(usage, "completion_tokens") and usage.completion_tokens:
+                return usage.completion_tokens
         except (AttributeError, TypeError):
             pass
         return 0
