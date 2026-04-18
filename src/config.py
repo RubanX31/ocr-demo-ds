@@ -23,7 +23,7 @@ TEXT_DUMPS_DIR = PROJECT_ROOT / "text_dumps"
 DATABASE_DIR = PROJECT_ROOT / "database"
 LOGS_DIR = PROJECT_ROOT / "logs"
 ONTOLOGY_DIR = PROJECT_ROOT / "ontology"
-POPPLER_DIR = PROJECT_ROOT / "poppler" / "poppler-24.08.0" / "Library" / "bin"
+
 
 # ---------------------------------------------------------------------------
 # Groq LLM settings

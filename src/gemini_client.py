@@ -6,9 +6,9 @@ Provides a single reusable :class:`GeminiClient` used by all pipeline stages:
   - Reasoning LLM ontology extraction (text → JSON)
   - Hallucination check (text + JSON → validation)
 
-Uses the ``groq`` Python SDK. PDF pages are converted to JPEG images via
-``pdf2image`` before being sent to the vision model. All calls are logged
-via the Python :mod:`logging` module.
+Uses the ``groq`` Python SDK. PDF pages are converted to PNG images via
+``PyMuPDF`` (fitz) before being sent to the vision model. All calls are
+logged via the Python :mod:`logging` module.
 
 .. note::
    The class is still named ``GeminiClient`` and the module-level instance is
@@ -16,17 +16,16 @@ via the Python :mod:`logging` module.
 """
 
 import base64
-import io
 import json
 import logging
 import re
 import time
 from pathlib import Path
 
+import fitz
 from groq import Groq
-from pdf2image import convert_from_path
 
-from src.config import GROQ_API_KEY, GROQ_MODEL_VISION, GROQ_MODEL_TEXT, POPPLER_DIR
+from src.config import GROQ_API_KEY, GROQ_MODEL_VISION, GROQ_MODEL_TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +73,9 @@ class GeminiClient:
         prompt_version: str = "V1",
     ) -> dict:
         """
-        Convert the first page of a PDF to JPEG and send it with a text
-        prompt to the Groq vision model.
+        Convert the first page of a PDF to a high-resolution PNG image
+        using PyMuPDF and send it with a text prompt to the Groq vision
+        model.
 
         Args:
             prompt:         The text prompt to send alongside the PDF.
@@ -91,20 +91,18 @@ class GeminiClient:
         try:
             start = time.perf_counter()
 
-            # Convert first page of PDF to JPEG image
-            images = convert_from_path(
-                str(pdf_path), dpi=150, first_page=1, last_page=1,
-                poppler_path=str(POPPLER_DIR),
-            )
-            first_page = images[0]
+            # Convert first page of PDF to PNG image using PyMuPDF
+            doc = fitz.open(pdf_path)
+            page = doc.load_page(0)
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            img_bytes = pix.tobytes("png")
+            doc.close()
 
-            # Encode image to base64 JPEG string
-            buffer = io.BytesIO()
-            first_page.save(buffer, format="JPEG")
-            base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            # Encode to base64
+            base64_image = base64.b64encode(img_bytes).decode("utf-8")
 
             logger.info(
-                "Converted first page of PDF to JPEG for vision model: %s",
+                "Converted first page of PDF to PNG for vision model: %s",
                 pdf_path.name,
             )
 
@@ -120,7 +118,7 @@ class GeminiClient:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}",
+                                "url": f"data:image/png;base64,{base64_image}",
                             },
                         },
                     ],
